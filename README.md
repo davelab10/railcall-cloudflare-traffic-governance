@@ -27,7 +27,6 @@ may inspect and propose, but a human must authorize the exact action.
 
 - [Testing and evidence](TESTING.md) — evidence levels, acceptance matrix, live scope, and limitations.
 - [Command reference](COMMANDS.md) — all 20 manifest contracts, inputs, outputs, and failure semantics.
-- [Locked video guide](VIDEO_GUIDE_STEP3.md) — pending production specification; no video is claimed here.
 
 ## What it does
 
