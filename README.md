@@ -1,10 +1,10 @@
 # dave/cloudflare-traffic-governance
 
-`dave/cloudflare-traffic-governance` is a RailCall-native module for bounded,
-governed Cloudflare DNS traffic changes. It reads authoritative state, creates
-an exact old-to-new plan, binds the intended state before approval, refuses
-stale plans, executes only bounded mutations, rereads Cloudflare, reconciles
-the result, and preserves signed evidence through native RailCall receipts.
+`dave/cloudflare-traffic-governance` v0.1.0 is a RailCall-native module for
+bounded, governed Cloudflare DNS traffic changes. It reads authoritative state,
+binds an exact old-to-new plan before approval, refuses stale plans, executes
+only bounded mutations, verifies by rereading Cloudflare, reconciles the result,
+and preserves evidence through native RailCall receipts.
 
 The module is designed for consequential production work: the operator or AI
 may inspect and propose, but a human must authorize the exact action.
@@ -19,14 +19,26 @@ may inspect and propose, but a human must authorize the exact action.
 | **Surface** | 20 commands: 15 read/analysis/proof paths and 5 governed mutation/recovery paths. |
 | **Module** | `dave/cloudflare-traffic-governance` `0.1.0`. |
 | **Runtime integration** | `dave-cloudflare-traffic-governance::cloudflare`. |
-| **Current evidence** | Live bounded Cloudflare E2E for the three disposable test names; governance limitations remain explicit. |
+| **Evidence** | Bounded live Cloudflare E2E for the three disposable test names; governance and receipt-chain limitations remain explicit. See [TESTING.md](TESTING.md). |
 
 > **Approval is not permission to overwrite reality.**
 
-### Documentation map
+### Start here
 
-- [Testing and evidence](TESTING.md) — evidence levels, acceptance matrix, live scope, and limitations.
-- [Command reference](COMMANDS.md) — all 20 manifest contracts, inputs, outputs, and failure semantics.
+- [Command reference](COMMANDS.md) — the 20 manifest commands and exact contracts.
+- [Testing and evidence](TESTING.md) — evidence levels, bounded live scope, and limitations.
+
+### Capability surface
+
+| Capability family | What it covers |
+|---|---|
+| Discover | Account preflight, zones, DNS records, and bounded traffic-state inspection. |
+| Analyze and plan | Conflict checks, deterministic old-to-new plans, risk assessment, and approval preview. |
+| Govern and execute | Fresh precondition checks; approved create, update, delete, and bounded batch changes. |
+| Verify and recover | Authoritative post-read, reconciliation, proof, and separately governed rollback. |
+
+The command reference remains authoritative for all 20 command inputs,
+outputs, risk classes, and failure semantics.
 
 ## What it does
 
@@ -49,17 +61,9 @@ may inspect and propose, but a human must authorize the exact action.
 
 ## Why this exists
 
-DNS automation is easy. Blind production mutation is dangerous.
-
-An approval can become unsafe if the provider state changes after approval. A
-record may be edited by another operator, a TTL or proxy flag may drift, or one
-member of a batch may no longer match. This module binds approval to the
-specific state and payload, rereads the provider immediately before writing,
-and fails closed when reality no longer matches the approved plan.
-
-The governing principle is simple:
-
-> Approval is not permission to overwrite reality.
+DNS automation is easy. Blind production mutation is dangerous. Provider state
+can change after review, so approval must be bound to an exact plan and guarded
+by a fresh provider read before execution.
 
 ## Core workflow
 
@@ -103,31 +107,6 @@ flowchart TD
 
 The diagram is the trust boundary, not a claim that every branch has the same
 live evidence level. See [Testing and evidence](TESTING.md) for the distinction.
-
-## Key capabilities
-
-### Implemented and bounded
-
-- Live Cloudflare zone and DNS reads.
-- Exact create, update, and delete plans.
-- Bounded batch changes with an explicit target list.
-- Canonical state pinning across material DNS fields, including `proxied` and
-  `ttl`.
-- Stale-state detection and fail-closed batch preconditions.
-- Deterministic plan, state, and action hashes.
-- Idempotency references and replay-safe handling at the module boundary.
-- Authoritative post-read verification.
-- Reconciliation that refuses to report green when evidence disagrees.
-- New governed rollback planning and execution.
-- Signed native RailCall receipts and evidence references where Station provides
-  them.
-
-### Not claimed as current Cloudflare runtime proof
-
-The Step 2 audit did not establish distinct native Cloudflare Team-approver
-runtime coverage for GV2–GV7, native write-approval expiry, or genuine
-out-of-band Cloudflare drift. The module exposes the data and gates needed for
-those paths, but this project does not claim those cases as live-proven.
 
 ## Supported scope
 
@@ -243,7 +222,7 @@ railcall market install --from-path ./module
 
 The signed local bundle must be verified before install. The Step 2 audit
 recorded a v2 tree signature, matching source/installed hashes, and 20 loaded
-commands.
+commands for the documented module version.
 
 ### 4. Safe read-only validation
 
@@ -263,16 +242,16 @@ only through an explicitly approved governed mutation.
 
 ## Quick start
 
-The minimal safe path is:
+The operational path is:
 
-1. Run `account_preflight` with no raw credential input.
-2. Run `zone_list` and select one exact zone.
-3. Run `zone_get` and `dns_record_list` for that zone.
-4. Run `traffic_state_inspect`, `change_plan`, `change_risk_assess`, and
-   `change_preview` for an explicit bounded target set.
-5. Obtain the required human approval through native RailCall.
-6. Run the fresh precondition gate.
-7. Execute only the exact approved command, then verify and reconcile.
+```text
+Inspect → Plan → Risk → Preview → Human approval → Fresh precondition
+→ Execute → Authoritative verify → Reconcile → Prove
+```
+
+Begin with `account_preflight`, `zone_list`, `zone_get`, and
+`dns_record_list`; then follow the governed sequence for an explicit bounded
+target set. Do not supply raw credentials to commands.
 
 The complete input/output contracts are in [COMMANDS.md](COMMANDS.md).
 
@@ -290,19 +269,6 @@ railcall-e2e-c.davelabs.my.id  192.0.2.10 → 198.51.100.44
 
 `192.0.2.10`, `198.51.100.44`, and `203.0.113.77` are documentation/test
 addresses. They are not production routing guidance.
-
-Normal path:
-
-```text
-read A/B/C
-→ create exact plan and hashes
-→ assess risk and preview
-→ human approval
-→ reread all three
-→ execute bounded batch
-→ reread all three
-→ verify and reconcile
-```
 
 If one record changes after approval, the fresh reread returns a stale batch
 precondition result and executes `0/3` mutations. The correct next action is a
@@ -393,8 +359,8 @@ The implementation and audit use these important states or failure classes:
 ## Testing
 
 See [TESTING.md](TESTING.md) for the evidence matrix and verification levels.
-The current documented result is **19 passed, 0 failed** for the project
-regression suite.
+The documented project regression result is **19 passed, 0 failed**. See
+TESTING.md for what that suite establishes and what remains unverified.
 
 The evidence split is:
 
@@ -415,9 +381,8 @@ response shapes.
 
 ## Video
 
-The locked production specification is [VIDEO_GUIDE_STEP3.md](VIDEO_GUIDE_STEP3.md).
-Step 3 video production and Step 5 YouTube publication remain pending. No
-YouTube URL is claimed here.
+Video production artifacts are maintained separately; no YouTube URL is
+claimed here.
 
 ## Metadata
 
